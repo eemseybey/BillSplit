@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npx --yes create-vite@latest bill-tracker-app --template react-ts)",
+      "Bash(mv bill-tracker-app/* bill-tracker-app/.* .)",
+      "Bash(rm -rf bill-tracker-app)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}
