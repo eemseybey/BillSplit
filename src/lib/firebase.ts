@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
@@ -11,5 +11,13 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+let firestore;
+try {
+  firestore = initializeFirestore(app, {
+    localCache: persistentLocalCache(),
+  });
+} catch {
+  firestore = getFirestore(app);
+}
+export const db = firestore;
 export default app;

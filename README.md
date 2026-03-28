@@ -1,73 +1,131 @@
-# React + TypeScript + Vite
+# BillSplit
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A household bill tracking and splitting app built for families sharing utilities. Track bills, split costs, manage payments (tapal), and review trends from your phone.
 
-Currently, two official plugins are available:
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.2-06B6D4?logo=tailwindcss&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-Firestore-FFCA28?logo=firebase&logoColor=black)
+![Supabase](https://img.shields.io/badge/Supabase-Storage-3ECF8E?logo=supabase&logoColor=white)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Bill Management**
+- Add monthly bills for VECO (electricity), PLDT (WiFi), and MCWD (water)
+- Upload photos of bills as proof via Supabase Storage
+- Adjustable split amounts — override the defaults before saving
 
-## Expanding the ESLint configuration
+**Tapal (Pay-on-Behalf) System**
+- Record who paid the full bill to the provider
+- Enter how much each family actually contributed
+- Automatically tracks who owes whom and how much
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+**Smart Splitting**
+- VECO & PLDT: Ocanada pays a fixed amount, remainder split between Bacarisas & Patino
+- MCWD: Equal three-way split
+- Fully adjustable per bill
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+**Dashboard & Analytics**
+- Monthly overview of all bills and payment status
+- Visual charts powered by Recharts
+- Outstanding balance tracker across all time
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+**Optional SMS**
+- SMS integration is feature-flagged and disabled by default
+- Set `VITE_ENABLE_SMS=true` when you want to re-enable provider integration
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+**Household Selection**
+- Choose your household on launch
+- Color-coded family indicators throughout the app
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19 + TypeScript |
+| Routing | React Router 7 |
+| Styling | Tailwind CSS 4 |
+| Database | Firebase Firestore |
+| File Storage | Supabase Storage |
+| Charts | Recharts |
+| Icons | Lucide React |
+| SMS | Semaphore API (optional, feature-flagged) |
+| Build | Vite |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- A Firebase project with Firestore enabled
+- A Supabase project with a **public** storage bucket named `bill-images`
+
+### Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/eemseybey/BillSplit.git
+cd BillSplit
+
+# Install dependencies
+npm install
+
+# Copy environment variables
+cp .env.example .env
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Fill in your `.env`:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```env
+VITE_FIREBASE_API_KEY=your-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+VITE_FIREBASE_APP_ID=your-app-id
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_ENABLE_SMS=false
 ```
+
+### Run
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### Build
+
+```bash
+npm run build
+npm run preview
+```
+
+---
+
+## Project Structure
+
+```
+src/
+├── components/     # Reusable UI (Layout, BillCard, MonthPicker, StatusBadge)
+├── context/        # HouseholdContext for active family state
+├── hooks/          # Firestore data hooks
+├── lib/            # Firebase, Supabase, SMS, bill calculator, constants
+├── pages/          # Dashboard, Bills, Tapal, Analytics, Settings
+└── types/          # TypeScript interfaces
+```
+
+---
+
+## License
+
+MIT

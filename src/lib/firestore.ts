@@ -9,10 +9,13 @@ import {
   query,
   where,
   orderBy,
+  onSnapshot,
   type DocumentData,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Bill, Payment, AppSettings, FamilyName } from '../types';
+import { parseBill, parsePayment, parseSettings } from './validators';
 
 // Collections
 const BILLS_COLLECTION = 'bills';
@@ -24,7 +27,9 @@ const SETTINGS_COLLECTION = 'settings';
 export async function getBills(): Promise<Bill[]> {
   const q = query(collection(db, BILLS_COLLECTION), orderBy('month', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Bill));
+  return snapshot.docs
+    .map((item) => parseBill(item.id, item.data()))
+    .filter((item): item is Bill => item !== null);
 }
 
 export async function getBillsByMonth(month: string): Promise<Bill[]> {
@@ -34,7 +39,23 @@ export async function getBillsByMonth(month: string): Promise<Bill[]> {
     orderBy('createdAt', 'desc')
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Bill));
+  return snapshot.docs
+    .map((item) => parseBill(item.id, item.data()))
+    .filter((item): item is Bill => item !== null);
+}
+
+export function subscribeToBills(onData: (bills: Bill[]) => void, onError: (error: Error) => void): Unsubscribe {
+  const q = query(collection(db, BILLS_COLLECTION), orderBy('month', 'desc'));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const bills = snapshot.docs
+        .map((item) => parseBill(item.id, item.data()))
+        .filter((item): item is Bill => item !== null);
+      onData(bills);
+    },
+    onError
+  );
 }
 
 export async function addBill(bill: Omit<Bill, 'id'>): Promise<string> {
@@ -56,7 +77,23 @@ export async function deleteBill(id: string): Promise<void> {
 export async function getPayments(): Promise<Payment[]> {
   const q = query(collection(db, PAYMENTS_COLLECTION), orderBy('date', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Payment));
+  return snapshot.docs
+    .map((item) => parsePayment(item.id, item.data()))
+    .filter((item): item is Payment => item !== null);
+}
+
+export function subscribeToPayments(onData: (payments: Payment[]) => void, onError: (error: Error) => void): Unsubscribe {
+  const q = query(collection(db, PAYMENTS_COLLECTION), orderBy('date', 'desc'));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const payments = snapshot.docs
+        .map((item) => parsePayment(item.id, item.data()))
+        .filter((item): item is Payment => item !== null);
+      onData(payments);
+    },
+    onError
+  );
 }
 
 export async function addPayment(payment: Omit<Payment, 'id'>): Promise<string> {
@@ -69,15 +106,33 @@ export async function deletePayment(id: string): Promise<void> {
   await deleteDoc(doc(db, PAYMENTS_COLLECTION, id));
 }
 
+export async function updatePayment(id: string, data: Partial<Payment>): Promise<void> {
+  await updateDoc(doc(db, PAYMENTS_COLLECTION, id), data as DocumentData);
+}
+
 // --- Settings ---
 
 export async function getSettings(): Promise<AppSettings | null> {
   const docRef = doc(db, SETTINGS_COLLECTION, 'app');
   const snapshot = await getDoc(docRef);
   if (snapshot.exists()) {
-    return snapshot.data() as AppSettings;
+    return parseSettings(snapshot.data());
   }
   return null;
+}
+
+export function subscribeToSettings(
+  onData: (settings: AppSettings | null) => void,
+  onError: (error: Error) => void
+): Unsubscribe {
+  const docRef = doc(db, SETTINGS_COLLECTION, 'app');
+  return onSnapshot(
+    docRef,
+    (snapshot) => {
+      onData(snapshot.exists() ? parseSettings(snapshot.data()) : null);
+    },
+    onError
+  );
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {

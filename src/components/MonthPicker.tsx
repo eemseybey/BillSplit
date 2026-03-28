@@ -15,17 +15,19 @@ export default function MonthPicker({ value, onChange }: MonthPickerProps) {
   };
 
   return (
-    <div className="flex items-center justify-between bg-slate-800 rounded-xl px-4 py-3">
+    <div className="flex items-center justify-between glass-panel gradient-outline rounded-2xl px-4 py-3 hover-lift">
       <button
         onClick={() => shift(-1)}
-        className="p-1 rounded-lg hover:bg-slate-700 transition-colors"
+        aria-label="Previous month"
+        className="p-1.5 rounded-lg hover:bg-slate-700/60 transition-colors interactive-press"
       >
         <ChevronLeft className="w-5 h-5" />
       </button>
-      <span className="font-semibold text-white">{getMonthLabel(value)}</span>
+      <span className="font-semibold text-white tracking-wide">{getMonthLabel(value)}</span>
       <button
         onClick={() => shift(1)}
-        className="p-1 rounded-lg hover:bg-slate-700 transition-colors"
+        aria-label="Next month"
+        className="p-1.5 rounded-lg hover:bg-slate-700/60 transition-colors interactive-press"
       >
         <ChevronRight className="w-5 h-5" />
       </button>

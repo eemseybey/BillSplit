@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { HouseholdProvider, useHousehold } from './context/HouseholdContext';
+import { AppDataProvider } from './context/AppDataContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Bills from './pages/Bills';
@@ -32,21 +34,25 @@ function AppRoutes() {
 export default function App() {
   return (
     <HouseholdProvider>
-      <BrowserRouter>
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            style: {
-              background: '#1e293b',
-              color: '#e2e8f0',
-              border: '1px solid #475569',
-              borderRadius: '12px',
-              fontSize: '14px',
-            },
-          }}
-        />
-        <AppRoutes />
-      </BrowserRouter>
+      <AppDataProvider>
+        <BrowserRouter>
+          <ErrorBoundary>
+            <Toaster
+              position="top-center"
+              toastOptions={{
+                style: {
+                  background: '#1e293b',
+                  color: '#e2e8f0',
+                  border: '1px solid #475569',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                },
+              }}
+            />
+            <AppRoutes />
+          </ErrorBoundary>
+        </BrowserRouter>
+      </AppDataProvider>
     </HouseholdProvider>
   );
 }

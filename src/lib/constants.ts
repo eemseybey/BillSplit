@@ -1,4 +1,4 @@
-import type { Family, FamilyName, UtilityType } from '../types';
+import type { Family, FamilyName, UtilityType, SplitRules } from '../types';
 
 export const FAMILIES: Family[] = [
   { id: 'bacarisas', name: 'Bacarisas', color: '#3b82f6' },
@@ -20,6 +20,18 @@ export const BILL_DUE_DAY = 25;
 export const OCANADA_FIXED: Partial<Record<UtilityType, number>> = {
   VECO: 300,
   PLDT: 100,
+};
+
+export const DEFAULT_UTILITY_DUE_DAYS: Record<UtilityType, number> = {
+  VECO: BILL_DUE_DAY,
+  PLDT: BILL_DUE_DAY,
+  MCWD: BILL_DUE_DAY,
+};
+
+export const DEFAULT_SPLIT_RULES: SplitRules = {
+  VECO: { type: 'fixed-ocanada', ocanadaFixed: 300 },
+  PLDT: { type: 'fixed-ocanada', ocanadaFixed: 100 },
+  MCWD: { type: 'equal' },
 };
 
 export const FAMILY_COLORS: Record<FamilyName, string> = {

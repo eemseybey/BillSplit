@@ -1,0 +1,16 @@
+{
+  "name": "BillSplit",
+  "short_name": "BillSplit",
+  "description": "Household bill tracking and split management.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

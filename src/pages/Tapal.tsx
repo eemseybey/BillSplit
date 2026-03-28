@@ -6,14 +6,18 @@ import { formatCurrency, getMonthKey, getMonthLabel, calculateTapalOwed } from '
 import { updateBill, addPayment, calculateBalances } from '../lib/firestore';
 import { sendSMS, buildTapalMessage } from '../lib/sms';
 import { FAMILY_COLORS, FAMILIES, FAMILY_NAMES } from '../lib/constants';
-import type { FamilyName, Bill } from '../types';
+import { SMS_ENABLED } from '../lib/features';
+import type { Bill, FamilyName } from '../types';
 import MonthPicker from '../components/MonthPicker';
+import { useHousehold } from '../context/HouseholdContext';
+import ErrorPanel from '../components/ErrorPanel';
 
 export default function Tapal() {
+  const { household } = useHousehold();
   const [month, setMonth] = useState(getMonthKey());
-  const { bills, refresh: refreshBills } = useBills();
-  const { payments, refresh: refreshPayments } = usePayments();
-  const { settings } = useSettings();
+  const { bills, refresh: refreshBills, error: billsError } = useBills();
+  const { payments, refresh: refreshPayments, error: paymentsError } = usePayments();
+  const { settings, error: settingsError, refresh: refreshSettings } = useSettings();
   const [processing, setProcessing] = useState<string | null>(null);
   const [tapalForm, setTapalForm] = useState<{ billId: string; paidBy: FamilyName; contributions: Record<FamilyName, string> } | null>(null);
 
@@ -72,7 +76,7 @@ export default function Tapal() {
         });
 
         // Send SMS notifications for families that didn't pay their full share
-        if (settings?.smsConfig?.enabled && settings.smsConfig.apiKey) {
+        if (SMS_ENABLED && settings?.smsConfig?.enabled && settings.smsConfig.apiKey) {
           for (const s of newSplits) {
             if (s.family !== paidBy && !s.isPaid) {
               const contributed = parseFloat(contributions[s.family]) || 0;
@@ -87,7 +91,10 @@ export default function Tapal() {
                     bill.utility,
                     getMonthLabel(month)
                   );
-                  await sendSMS(settings.smsConfig.apiKey, family.phone, message);
+                  const result = await sendSMS(settings.smsConfig.apiKey, family.phone, message);
+                  if (!result.success) {
+                    toast.error(`SMS failed for ${s.family}: ${result.message}`);
+                  }
                 }
               }
             }
@@ -111,12 +118,14 @@ export default function Tapal() {
     async (from: FamilyName, to: FamilyName, amount: number) => {
       try {
         await addPayment({
+          householdId: household ?? undefined,
+          kind: 'settlement',
           from,
           to,
           amount,
-          billId: '',
+          billId: undefined,
           month,
-          utility: 'MCWD', // General payment
+          utility: undefined,
           date: new Date().toISOString(),
           note: 'Settling balance',
         });
@@ -127,15 +136,25 @@ export default function Tapal() {
         toast.error('Failed to record payment');
       }
     },
-    [month, refreshPayments, refreshBills]
+    [month, refreshPayments, refreshBills, household]
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 fade-slide-in">
       <MonthPicker value={month} onChange={setMonth} />
+      {(billsError || paymentsError || settingsError) && (
+        <ErrorPanel
+          message={billsError ?? paymentsError ?? settingsError ?? 'Failed to load tapal data'}
+          onRetry={() => {
+            void refreshBills();
+            void refreshPayments();
+            void refreshSettings();
+          }}
+        />
+      )}
 
       {/* Tapal Header */}
-      <div className="bg-gradient-to-r from-primary-600/20 to-primary-800/20 rounded-xl p-4 border border-primary-500/30">
+      <div className="glass-panel gradient-outline rounded-2xl p-4 hover-lift">
         <div className="flex items-center gap-2 mb-2">
           <HandCoins className="w-5 h-5 text-primary-400" />
           <h2 className="font-semibold text-primary-300">Tapal Mode</h2>
@@ -152,7 +171,7 @@ export default function Tapal() {
           {unpaidBills.map((bill) => {
             const isExpanded = tapalForm?.billId === bill.id;
             return (
-              <div key={bill.id} className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+              <div key={bill.id} className="glass-panel rounded-2xl p-4 hover-lift">
                 <div className="flex items-center justify-between mb-3">
                   <span className="font-semibold">{bill.utility}</span>
                   <span className="text-lg font-bold">{formatCurrency(bill.totalAmount)}</span>
@@ -167,7 +186,7 @@ export default function Tapal() {
                           key={family}
                           onClick={() => openTapalForm(bill, family)}
                           disabled={processing === bill.id}
-                          className="py-2 px-3 rounded-lg text-sm font-medium transition-all hover:scale-105"
+                          className="py-2 px-3 rounded-xl text-sm font-medium transition-all hover:scale-105 interactive-press"
                           style={{
                             backgroundColor: `${FAMILY_COLORS[family]}20`,
                             color: FAMILY_COLORS[family],
@@ -192,7 +211,7 @@ export default function Tapal() {
 
                     <div className="space-y-2 mb-3">
                       {bill.splits.map((split) => (
-                        <div key={split.family} className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-slate-900/50">
+                        <div key={split.family} className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-slate-900/45 border border-slate-700/50">
                           <div className="flex items-center gap-2 min-w-[80px]">
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: FAMILY_COLORS[split.family] }} />
                             <span className="text-sm">{split.family}</span>
@@ -211,7 +230,7 @@ export default function Tapal() {
                                     prev ? { ...prev, contributions: { ...prev.contributions, [split.family]: e.target.value } } : null
                                   )
                                 }
-                                className="w-full bg-slate-800 border border-slate-600 rounded-lg pl-7 pr-3 py-1.5 text-sm text-right font-medium focus:outline-none focus:border-primary-500 transition-colors"
+                                className="w-full bg-slate-800 border border-slate-600 rounded-xl pl-7 pr-3 py-1.5 text-sm text-right font-medium focus:outline-none focus:border-primary-500 transition-colors"
                               />
                             </div>
                           </div>
@@ -240,7 +259,7 @@ export default function Tapal() {
                             </p>
                           )}
                           {owes.length > 0 && (
-                            <div className="bg-slate-900/30 rounded-lg p-2">
+                            <div className="bg-slate-900/35 rounded-xl p-2 border border-slate-700/50">
                               <p className="text-xs text-slate-500 mb-1">Will owe {tapalForm.paidBy}:</p>
                               {owes.map((o) => (
                                 <div key={o.family} className="flex justify-between text-xs py-0.5">
@@ -257,7 +276,7 @@ export default function Tapal() {
                     <button
                       onClick={handleConfirmTapal}
                       disabled={processing === bill.id}
-                      className="mt-3 w-full py-2.5 bg-primary-600 hover:bg-primary-500 disabled:bg-slate-600 rounded-lg font-medium text-sm transition-colors"
+                      className="mt-3 w-full py-2.5 animated-gradient-btn disabled:bg-slate-600 rounded-xl font-medium text-sm transition-all hover-lift"
                     >
                       {processing === bill.id ? 'Processing...' : 'Confirm Tapal'}
                     </button>
@@ -278,14 +297,14 @@ export default function Tapal() {
       )}
 
       {/* Outstanding Balances */}
-      <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+      <div className="glass-panel rounded-2xl p-4 hover-lift">
         <h3 className="text-sm font-semibold text-slate-300 mb-3">Outstanding Balances (All Time)</h3>
         {balances.length === 0 ? (
           <p className="text-slate-500 text-sm text-center py-4">All settled up!</p>
         ) : (
           <div className="space-y-3">
             {balances.map((b, i) => (
-              <div key={i} className="bg-slate-900/50 rounded-lg p-3">
+              <div key={i} className="bg-slate-900/45 border border-slate-700/50 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 text-sm">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: FAMILY_COLORS[b.from] }} />
@@ -299,12 +318,12 @@ export default function Tapal() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleRecordPayment(b.from, b.to, b.amount)}
-                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-success-500/20 text-success-400 text-xs font-medium hover:bg-success-500/30 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl bg-success-500/20 text-success-400 text-xs font-medium hover:bg-success-500/30 transition-colors interactive-press"
                   >
                     <Check className="w-3.5 h-3.5" />
                     Mark Settled
                   </button>
-                  {settings?.smsConfig?.enabled && (
+                  {SMS_ENABLED && settings?.smsConfig?.enabled && (
                     <button
                       onClick={async () => {
                         const family = FAMILIES.find((f) => f.name === b.from);
@@ -319,7 +338,7 @@ export default function Tapal() {
                           toast.error('Phone number not set for this family');
                         }
                       }}
-                      className="flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg bg-primary-500/20 text-primary-400 text-xs font-medium hover:bg-primary-500/30 transition-colors"
+                      className="flex items-center justify-center gap-1 py-1.5 px-3 rounded-xl bg-primary-500/20 text-primary-400 text-xs font-medium hover:bg-primary-500/30 transition-colors interactive-press"
                     >
                       <Send className="w-3.5 h-3.5" />
                       SMS
@@ -334,7 +353,7 @@ export default function Tapal() {
 
       {/* Tapal History */}
       {monthBills.filter((b) => b.paidBy).length > 0 && (
-        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+        <div className="glass-panel rounded-2xl p-4 hover-lift">
           <h3 className="text-sm font-semibold text-slate-300 mb-3">Tapal History This Month</h3>
           <div className="space-y-2">
             {monthBills
@@ -342,7 +361,7 @@ export default function Tapal() {
               .map((bill) => {
                 const owed = calculateTapalOwed(bill.splits, bill.paidBy!);
                 return (
-                  <div key={bill.id} className="bg-slate-900/50 rounded-lg p-3">
+                  <div key={bill.id} className="bg-slate-900/45 border border-slate-700/50 rounded-xl p-3">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium">{bill.utility}</span>
                       <span className="text-xs text-primary-400">Tapal by {bill.paidBy}</span>

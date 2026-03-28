@@ -1,6 +1,7 @@
 export type FamilyName = 'Bacarisas' | 'Ocanada' | 'Patino';
 
 export type UtilityType = 'VECO' | 'PLDT' | 'MCWD';
+export type PaymentKind = 'bill' | 'settlement' | 'adjustment';
 
 export interface Family {
   id: string;
@@ -12,6 +13,7 @@ export interface Family {
 export interface Bill {
   id: string;
   month: string; // Format: "2026-03"
+  householdId?: string;
   utility: UtilityType;
   totalAmount: number;
   dueDate: string; // ISO date string
@@ -35,9 +37,11 @@ export interface Payment {
   from: FamilyName;
   to: FamilyName;
   amount: number;
-  billId: string;
+  householdId?: string;
+  kind: PaymentKind;
+  billId?: string;
   month: string;
-  utility: UtilityType;
+  utility?: UtilityType;
   date: string;
   note?: string;
 }
@@ -65,4 +69,13 @@ export interface SMSConfig {
 export interface AppSettings {
   smsConfig: SMSConfig;
   families: Family[];
+  splitRules?: SplitRules;
+  utilityDueDays?: Partial<Record<UtilityType, number>>;
 }
+
+export interface UtilitySplitRule {
+  type: 'equal' | 'fixed-ocanada';
+  ocanadaFixed?: number;
+}
+
+export type SplitRules = Record<UtilityType, UtilitySplitRule>;

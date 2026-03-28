@@ -1,8 +1,17 @@
-import type { BillSplit, FamilyName, UtilityType } from '../types';
-import { OCANADA_FIXED } from './constants';
+import type { Bill, BillSplit, FamilyName, SplitRules, UtilityType } from '../types';
+import { BILL_DUE_DAY, DEFAULT_SPLIT_RULES, DEFAULT_UTILITY_DUE_DAYS, OCANADA_FIXED } from './constants';
 
-export function calculateSplits(utility: UtilityType, totalAmount: number): BillSplit[] {
-  const fixedAmount = OCANADA_FIXED[utility];
+export function calculateSplits(
+  utility: UtilityType,
+  totalAmount: number,
+  splitRules?: SplitRules
+): BillSplit[] {
+  const rules = splitRules ?? DEFAULT_SPLIT_RULES;
+  const utilityRule = rules[utility];
+  const fixedAmount =
+    utilityRule?.type === 'fixed-ocanada'
+      ? utilityRule.ocanadaFixed ?? OCANADA_FIXED[utility]
+      : OCANADA_FIXED[utility];
 
   if (fixedAmount !== undefined) {
     // VECO or PLDT: Ocanada pays fixed, rest split between Bacarisas & Patino
@@ -54,7 +63,49 @@ export function getMonthLabel(monthKey: string): string {
 
 export function getDueDate(monthKey: string): Date {
   const [year, month] = monthKey.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, 25);
+  return new Date(parseInt(year, 10), parseInt(month, 10) - 1, BILL_DUE_DAY);
+}
+
+export function getDueDateForUtility(
+  monthKey: string,
+  utility: UtilityType,
+  dueDays?: Partial<Record<UtilityType, number>>
+): Date {
+  const [year, month] = monthKey.split('-');
+  const day = dueDays?.[utility] ?? DEFAULT_UTILITY_DUE_DAYS[utility] ?? BILL_DUE_DAY;
+  return new Date(parseInt(year, 10), parseInt(month, 10) - 1, day);
+}
+
+export function getBillDueDate(
+  bill: Pick<Bill, 'dueDate' | 'month' | 'utility'>,
+  dueDays?: Partial<Record<UtilityType, number>>
+): Date {
+  if (bill.dueDate) {
+    const parsed = new Date(bill.dueDate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return getDueDateForUtility(bill.month, bill.utility, dueDays);
+}
+
+export function isBillDueSoon(
+  bill: Pick<Bill, 'dueDate' | 'month' | 'utility'>,
+  dueDays?: Partial<Record<UtilityType, number>>,
+  windowDays = 5
+): boolean {
+  const due = getBillDueDate(bill, dueDays);
+  const now = new Date();
+  const daysUntilDue = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return daysUntilDue >= 0 && daysUntilDue <= windowDays;
+}
+
+export function isBillOverdue(
+  bill: Pick<Bill, 'dueDate' | 'month' | 'utility'>,
+  dueDays?: Partial<Record<UtilityType, number>>
+): boolean {
+  const due = getBillDueDate(bill, dueDays);
+  return new Date() > due;
 }
 
 export function isDueSoon(monthKey: string): boolean {
