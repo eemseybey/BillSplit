@@ -1,5 +1,7 @@
 import type { Bill, BillSplit, FamilyName, SplitRules, UtilityType } from '../types';
-import { BILL_DUE_DAY, DEFAULT_SPLIT_RULES, DEFAULT_UTILITY_DUE_DAYS, OCANADA_FIXED } from './constants';
+import { BILL_DUE_DAY, DEFAULT_SPLIT_RULES, DEFAULT_UTILITY_DUE_DAYS, FAMILY_NAMES } from './constants';
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function calculateSplits(
   utility: UtilityType,
@@ -7,32 +9,55 @@ export function calculateSplits(
   splitRules?: SplitRules
 ): BillSplit[] {
   const rules = splitRules ?? DEFAULT_SPLIT_RULES;
-  const utilityRule = rules[utility];
-  const fixedAmount =
-    utilityRule?.type === 'fixed-ocanada'
-      ? utilityRule.ocanadaFixed ?? OCANADA_FIXED[utility]
-      : OCANADA_FIXED[utility];
+  const rule = rules[utility];
 
-  if (fixedAmount !== undefined) {
-    // VECO or PLDT: Ocanada pays fixed, rest split between Bacarisas & Patino
-    const ocanadaShare = Math.min(fixedAmount, totalAmount);
-    const remainder = totalAmount - ocanadaShare;
-    const halfRemainder = Math.round((remainder / 2) * 100) / 100;
+  if (rule?.type === 'custom' || rule?.type === 'fixed-ocanada') {
+    const fixedAmounts: Partial<Record<FamilyName, number>> = rule.type === 'fixed-ocanada'
+      ? { Ocanada: rule.ocanadaFixed ?? 0 }
+      : rule.fixedAmounts ?? {};
+    const remainderFamilies: FamilyName[] = rule.type === 'fixed-ocanada'
+      ? FAMILY_NAMES.filter((f) => f !== 'Ocanada')
+      : rule.remainderFamilies ?? [];
 
-    return [
-      { family: 'Bacarisas', amount: halfRemainder, isPaid: false },
-      { family: 'Ocanada', amount: ocanadaShare, isPaid: false },
-      { family: 'Patino', amount: halfRemainder, isPaid: false },
-    ];
+    const shares: Record<FamilyName, number> = { Bacarisas: 0, Ocanada: 0, Patino: 0 };
+    let fixedTotal = 0;
+    for (const family of FAMILY_NAMES) {
+      const amount = fixedAmounts[family];
+      if (typeof amount === 'number' && amount > 0) {
+        shares[family] = amount;
+        fixedTotal += amount;
+      }
+    }
+
+    const remainder = Math.max(0, totalAmount - fixedTotal);
+    if (remainderFamilies.length > 0 && remainder > 0) {
+      const per = round2(remainder / remainderFamilies.length);
+      const leftover = round2(remainder - per * remainderFamilies.length);
+      remainderFamilies.forEach((family, idx) => {
+        shares[family] = round2(shares[family] + per + (idx === 0 ? leftover : 0));
+      });
+    } else if (remainder > 0) {
+      // No remainder families defined — dump onto the first family with any fixed,
+      // or onto Bacarisas as a safe default.
+      const target = (FAMILY_NAMES.find((f) => fixedAmounts[f] !== undefined) ?? 'Bacarisas') as FamilyName;
+      shares[target] = round2(shares[target] + remainder);
+    }
+
+    // Cap total if fixed amounts exceed total: scale down proportionally isn't right,
+    // just trust user inputs and return as-is.
+    return FAMILY_NAMES.map((family) => ({
+      family,
+      amount: round2(shares[family]),
+      isPaid: false,
+    }));
   }
 
-  // MCWD: Equal 3-way split
-  const thirdAmount = Math.round((totalAmount / 3) * 100) / 100;
-  // Handle rounding: give any extra centavo to the first family
-  const remainder = Math.round((totalAmount - thirdAmount * 3) * 100) / 100;
+  // Equal split
+  const thirdAmount = round2(totalAmount / 3);
+  const leftover = round2(totalAmount - thirdAmount * 3);
 
   return [
-    { family: 'Bacarisas', amount: Math.round((thirdAmount + remainder) * 100) / 100, isPaid: false },
+    { family: 'Bacarisas', amount: round2(thirdAmount + leftover), isPaid: false },
     { family: 'Ocanada', amount: thirdAmount, isPaid: false },
     { family: 'Patino', amount: thirdAmount, isPaid: false },
   ];

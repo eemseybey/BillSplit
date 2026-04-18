@@ -74,7 +74,9 @@ export interface AppSettings {
 }
 
 export interface UtilitySplitRule {
-  type: 'equal' | 'fixed-ocanada';
+  type: 'equal' | 'custom' | 'fixed-ocanada';
+  fixedAmounts?: Partial<Record<FamilyName, number>>;
+  remainderFamilies?: FamilyName[];
   ocanadaFixed?: number;
 }
 

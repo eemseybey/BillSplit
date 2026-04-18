@@ -3,10 +3,10 @@ import { Save, Send, Phone, Key, Bell, Users, LogOut } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSettings } from '../hooks/useFirestore';
 import { sendSMS } from '../lib/sms';
-import { DEFAULT_SPLIT_RULES, DEFAULT_UTILITY_DUE_DAYS, FAMILIES } from '../lib/constants';
+import { DEFAULT_SPLIT_RULES, DEFAULT_UTILITY_DUE_DAYS, FAMILIES, FAMILY_NAMES, FAMILY_COLORS } from '../lib/constants';
 import { useHousehold } from '../context/HouseholdContext';
 import { SMS_ENABLED } from '../lib/features';
-import type { AppSettings, Family, SplitRules, UtilityType } from '../types';
+import type { AppSettings, Family, FamilyName, SplitRules, UtilityType } from '../types';
 import ErrorPanel from '../components/ErrorPanel';
 
 export default function Settings() {
@@ -210,52 +210,164 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Split Rules Info */}
+      {/* Split Rules */}
       <div className="glass-panel rounded-2xl p-4 hover-lift">
         <h3 className="font-semibold mb-3">Split Rules</h3>
+        <p className="text-xs text-slate-500 mb-3">
+          Equal = split total evenly across all families. Custom = set fixed amounts for any family, and pick who covers the remainder.
+        </p>
         <div className="space-y-3">
           {(['VECO', 'PLDT', 'MCWD'] as UtilityType[]).map((utility) => {
             const rule = splitRules[utility];
+            const isCustom = rule.type === 'custom' || rule.type === 'fixed-ocanada';
+            const fixedAmounts = rule.fixedAmounts ?? {};
+            const remainderFamilies = rule.remainderFamilies ?? [];
+
+            const toggleFixed = (family: FamilyName) => {
+              setSplitRules((prev) => {
+                const current = prev[utility];
+                const currentFixed = { ...(current.fixedAmounts ?? {}) };
+                if (family in currentFixed) {
+                  delete currentFixed[family];
+                } else {
+                  currentFixed[family] = 0;
+                }
+                return {
+                  ...prev,
+                  [utility]: {
+                    type: 'custom',
+                    fixedAmounts: currentFixed,
+                    remainderFamilies: current.remainderFamilies ?? [],
+                  },
+                };
+              });
+            };
+
+            const setFixedAmount = (family: FamilyName, amount: number) => {
+              setSplitRules((prev) => ({
+                ...prev,
+                [utility]: {
+                  type: 'custom',
+                  fixedAmounts: { ...(prev[utility].fixedAmounts ?? {}), [family]: amount },
+                  remainderFamilies: prev[utility].remainderFamilies ?? [],
+                },
+              }));
+            };
+
+            const toggleRemainder = (family: FamilyName) => {
+              setSplitRules((prev) => {
+                const current = prev[utility];
+                const currentRemainder = current.remainderFamilies ?? [];
+                const next = currentRemainder.includes(family)
+                  ? currentRemainder.filter((f) => f !== family)
+                  : [...currentRemainder, family];
+                return {
+                  ...prev,
+                  [utility]: {
+                    type: 'custom',
+                    fixedAmounts: current.fixedAmounts ?? {},
+                    remainderFamilies: next,
+                  },
+                };
+              });
+            };
+
             return (
               <div key={utility} className="bg-slate-900/50 rounded-xl p-3 border border-slate-700/60">
                 <p className="text-sm font-medium mb-2">{utility}</p>
-                <div className="flex gap-2 mb-2">
+                <div className="flex gap-2 mb-3">
                   <button
                     type="button"
-                    onClick={() => setSplitRules((prev) => ({ ...prev, [utility]: { ...prev[utility], type: 'equal' } }))}
+                    onClick={() => setSplitRules((prev) => ({ ...prev, [utility]: { type: 'equal' } }))}
                     className={`px-2 py-1 rounded text-xs ${rule.type === 'equal' ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-300'}`}
                   >
                     Equal Split
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSplitRules((prev) => ({ ...prev, [utility]: { ...prev[utility], type: 'fixed-ocanada' } }))}
-                    className={`px-2 py-1 rounded text-xs ${rule.type === 'fixed-ocanada' ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                    onClick={() =>
+                      setSplitRules((prev) => ({
+                        ...prev,
+                        [utility]: {
+                          type: 'custom',
+                          fixedAmounts: prev[utility].fixedAmounts ?? {},
+                          remainderFamilies: prev[utility].remainderFamilies ?? [],
+                        },
+                      }))
+                    }
+                    className={`px-2 py-1 rounded text-xs ${isCustom ? 'bg-primary-600 text-white' : 'bg-slate-700 text-slate-300'}`}
                   >
-                    Ocanada Fixed
+                    Custom
                   </button>
                 </div>
-                {rule.type === 'fixed-ocanada' && (
-                  <label className="text-xs text-slate-400">
-                    Ocanada fixed amount
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={rule.ocanadaFixed ?? 0}
-                      onChange={(event) =>
-                        setSplitRules((prev) => ({
-                          ...prev,
-                          [utility]: {
-                            ...prev[utility],
-                            type: 'fixed-ocanada',
-                            ocanadaFixed: parseFloat(event.target.value) || 0,
-                          },
-                        }))
-                      }
-                      className="mt-1 w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-primary-500"
-                    />
-                  </label>
+
+                {isCustom && (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-slate-400 mb-2">Fixed amounts</p>
+                      <div className="space-y-2">
+                        {FAMILY_NAMES.map((family) => {
+                          const hasFixed = family in fixedAmounts;
+                          return (
+                            <div key={family} className="flex items-center gap-2">
+                              <label className="flex items-center gap-2 flex-1 text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={hasFixed}
+                                  onChange={() => toggleFixed(family)}
+                                  className="w-4 h-4 accent-primary-500"
+                                />
+                                <span style={{ color: FAMILY_COLORS[family] }}>{family}</span>
+                              </label>
+                              {hasFixed && (
+                                <div className="relative w-28">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">₱</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={fixedAmounts[family] ?? 0}
+                                    onChange={(event) => setFixedAmount(family, parseFloat(event.target.value) || 0)}
+                                    className="w-full bg-slate-800 border border-slate-600 rounded-lg pl-5 pr-2 py-1 text-xs text-right text-slate-100 focus:outline-none focus:border-primary-500"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-400 mb-2">Who covers the remainder?</p>
+                      <div className="flex flex-wrap gap-2">
+                        {FAMILY_NAMES.map((family) => {
+                          const isActive = remainderFamilies.includes(family);
+                          return (
+                            <button
+                              key={family}
+                              type="button"
+                              onClick={() => toggleRemainder(family)}
+                              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                                isActive
+                                  ? 'border-primary-500 bg-primary-500/20 text-primary-200'
+                                  : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-500'
+                              }`}
+                            >
+                              {family}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-2">
+                        {remainderFamilies.length === 0
+                          ? 'No one covers the remainder — any leftover goes to the first fixed family.'
+                          : remainderFamilies.length === 1
+                          ? `${remainderFamilies[0]} pays 100% of the remainder.`
+                          : `Remainder split equally between ${remainderFamilies.join(' & ')}.`}
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             );

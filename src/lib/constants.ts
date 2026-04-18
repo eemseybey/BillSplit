@@ -29,8 +29,16 @@ export const DEFAULT_UTILITY_DUE_DAYS: Record<UtilityType, number> = {
 };
 
 export const DEFAULT_SPLIT_RULES: SplitRules = {
-  VECO: { type: 'fixed-ocanada', ocanadaFixed: 300 },
-  PLDT: { type: 'fixed-ocanada', ocanadaFixed: 100 },
+  VECO: {
+    type: 'custom',
+    fixedAmounts: { Ocanada: 300 },
+    remainderFamilies: ['Bacarisas', 'Patino'],
+  },
+  PLDT: {
+    type: 'custom',
+    fixedAmounts: { Ocanada: 100 },
+    remainderFamilies: ['Bacarisas', 'Patino'],
+  },
   MCWD: { type: 'equal' },
 };
 

@@ -1,4 +1,4 @@
-import type { AppSettings, Bill, BillSplit, Family, FamilyName, Payment, PaymentKind, UtilityType } from '../types';
+import type { AppSettings, Bill, BillSplit, Family, FamilyName, Payment, PaymentKind, UtilitySplitRule, UtilityType } from '../types';
 import { DEFAULT_SPLIT_RULES, FAMILIES } from './constants';
 
 const FAMILY_NAMES = new Set<FamilyName>(['Bacarisas', 'Ocanada', 'Patino']);
@@ -118,33 +118,41 @@ export function parseSettings(value: unknown): AppSettings | null {
       MCWD: typeof utilityDueDaysRaw.MCWD === 'number' ? utilityDueDaysRaw.MCWD : undefined,
     },
     splitRules: {
-      VECO: isObject(splitRulesRaw.VECO)
-        ? {
-            type: splitRulesRaw.VECO.type === 'equal' ? 'equal' : 'fixed-ocanada',
-            ocanadaFixed:
-              typeof splitRulesRaw.VECO.ocanadaFixed === 'number'
-                ? splitRulesRaw.VECO.ocanadaFixed
-                : DEFAULT_SPLIT_RULES.VECO.ocanadaFixed,
-          }
-        : DEFAULT_SPLIT_RULES.VECO,
-      PLDT: isObject(splitRulesRaw.PLDT)
-        ? {
-            type: splitRulesRaw.PLDT.type === 'equal' ? 'equal' : 'fixed-ocanada',
-            ocanadaFixed:
-              typeof splitRulesRaw.PLDT.ocanadaFixed === 'number'
-                ? splitRulesRaw.PLDT.ocanadaFixed
-                : DEFAULT_SPLIT_RULES.PLDT.ocanadaFixed,
-          }
-        : DEFAULT_SPLIT_RULES.PLDT,
-      MCWD: isObject(splitRulesRaw.MCWD)
-        ? {
-            type: splitRulesRaw.MCWD.type === 'fixed-ocanada' ? 'fixed-ocanada' : 'equal',
-            ocanadaFixed:
-              typeof splitRulesRaw.MCWD.ocanadaFixed === 'number'
-                ? splitRulesRaw.MCWD.ocanadaFixed
-                : DEFAULT_SPLIT_RULES.MCWD.ocanadaFixed,
-          }
-        : DEFAULT_SPLIT_RULES.MCWD,
+      VECO: parseSplitRule(splitRulesRaw.VECO, DEFAULT_SPLIT_RULES.VECO),
+      PLDT: parseSplitRule(splitRulesRaw.PLDT, DEFAULT_SPLIT_RULES.PLDT),
+      MCWD: parseSplitRule(splitRulesRaw.MCWD, DEFAULT_SPLIT_RULES.MCWD),
     },
   };
+}
+
+function parseSplitRule(value: unknown, fallback: UtilitySplitRule): UtilitySplitRule {
+  if (!isObject(value)) return fallback;
+
+  const rawType = value.type;
+  // Migrate legacy 'fixed-ocanada' → 'custom'
+  if (rawType === 'fixed-ocanada') {
+    const fixed = typeof value.ocanadaFixed === 'number' ? value.ocanadaFixed : 0;
+    return {
+      type: 'custom',
+      fixedAmounts: { Ocanada: fixed },
+      remainderFamilies: ['Bacarisas', 'Patino'],
+    };
+  }
+
+  if (rawType === 'custom') {
+    const fixedAmountsRaw = isObject(value.fixedAmounts) ? value.fixedAmounts : {};
+    const fixedAmounts: Partial<Record<FamilyName, number>> = {};
+    for (const family of ['Bacarisas', 'Ocanada', 'Patino'] as FamilyName[]) {
+      const amount = fixedAmountsRaw[family];
+      if (typeof amount === 'number' && amount >= 0) {
+        fixedAmounts[family] = amount;
+      }
+    }
+    const remainderFamilies = Array.isArray(value.remainderFamilies)
+      ? (value.remainderFamilies.filter((f): f is FamilyName => parseFamilyName(f) !== null))
+      : [];
+    return { type: 'custom', fixedAmounts, remainderFamilies };
+  }
+
+  return { type: 'equal' };
 }
