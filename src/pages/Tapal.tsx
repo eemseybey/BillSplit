@@ -118,21 +118,20 @@ export default function Tapal() {
     async (from: FamilyName, to: FamilyName, amount: number) => {
       try {
         await addPayment({
-          householdId: household ?? undefined,
           kind: 'settlement',
           from,
           to,
           amount,
-          billId: undefined,
           month,
-          utility: undefined,
           date: new Date().toISOString(),
           note: 'Settling balance',
+          ...(household && { householdId: household }),
         });
         toast.success(`Recorded ${from}'s payment of ${formatCurrency(amount)} to ${to}`);
         await refreshPayments();
         await refreshBills();
-      } catch {
+      } catch (err) {
+        console.error('Failed to record payment:', err);
         toast.error('Failed to record payment');
       }
     },

@@ -167,17 +167,24 @@ export default function Bills() {
       const bill = bills.find((b) => b.id === billId);
       if (!bill) return;
 
-      const newSplits: BillSplit[] = bill.splits.map((s) =>
-        s.family === family
-          ? { ...s, isPaid: !s.isPaid, paidDate: !s.isPaid ? new Date().toISOString() : undefined }
-          : s
-      );
+      const newSplits: BillSplit[] = bill.splits.map((s) => {
+        if (s.family !== family) return s;
+        const next: BillSplit = { ...s, isPaid: !s.isPaid };
+        if (!s.isPaid) {
+          next.paidDate = new Date().toISOString();
+        } else {
+          delete next.paidDate;
+          delete next.paidTo;
+        }
+        return next;
+      });
 
       try {
         await updateBill(billId, { splits: newSplits });
         toast.success(`${family}'s payment ${newSplits.find((s) => s.family === family)?.isPaid ? 'confirmed' : 'unmarked'}`);
         await refresh();
-      } catch {
+      } catch (err) {
+        console.error('Failed to update payment:', err);
         toast.error('Failed to update payment');
       }
     },

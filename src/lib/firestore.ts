@@ -58,14 +58,28 @@ export function subscribeToBills(onData: (bills: Bill[]) => void, onError: (erro
   );
 }
 
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item)) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = stripUndefined(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 export async function addBill(bill: Omit<Bill, 'id'>): Promise<string> {
   const docRef = doc(collection(db, BILLS_COLLECTION));
-  await setDoc(docRef, bill);
+  await setDoc(docRef, stripUndefined(bill) as DocumentData);
   return docRef.id;
 }
 
 export async function updateBill(id: string, data: Partial<Bill>): Promise<void> {
-  await updateDoc(doc(db, BILLS_COLLECTION, id), data as DocumentData);
+  await updateDoc(doc(db, BILLS_COLLECTION, id), stripUndefined(data) as DocumentData);
 }
 
 export async function deleteBill(id: string): Promise<void> {
@@ -98,7 +112,7 @@ export function subscribeToPayments(onData: (payments: Payment[]) => void, onErr
 
 export async function addPayment(payment: Omit<Payment, 'id'>): Promise<string> {
   const docRef = doc(collection(db, PAYMENTS_COLLECTION));
-  await setDoc(docRef, payment);
+  await setDoc(docRef, stripUndefined(payment) as DocumentData);
   return docRef.id;
 }
 
@@ -107,7 +121,7 @@ export async function deletePayment(id: string): Promise<void> {
 }
 
 export async function updatePayment(id: string, data: Partial<Payment>): Promise<void> {
-  await updateDoc(doc(db, PAYMENTS_COLLECTION, id), data as DocumentData);
+  await updateDoc(doc(db, PAYMENTS_COLLECTION, id), stripUndefined(data) as DocumentData);
 }
 
 // --- Settings ---
@@ -136,7 +150,7 @@ export function subscribeToSettings(
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
-  await setDoc(doc(db, SETTINGS_COLLECTION, 'app'), settings as DocumentData);
+  await setDoc(doc(db, SETTINGS_COLLECTION, 'app'), stripUndefined(settings) as DocumentData);
 }
 
 // --- Balance Calculations ---
