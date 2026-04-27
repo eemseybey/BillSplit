@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "wipe-month": "node --env-file=.env scripts/wipe-month.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, Wifi, Droplets, AlertTriangle, TrendingUp, ArrowRight, Clock, Receipt, HandCoins } from 'lucide-react';
+import { Zap, Wifi, Droplets, AlertTriangle, TrendingUp, ArrowRight, Clock, Receipt, HandCoins, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useBills, usePayments } from '../hooks/useFirestore';
 import { formatCurrency, getMonthKey, getMonthLabel, isBillDueSoon, isBillOverdue } from '../lib/billCalculator';
-import { calculateBalances } from '../lib/firestore';
+import type { FamilyName, UtilityType } from '../types';
 import { FAMILY_COLORS, FAMILY_NAMES } from '../lib/constants';
 import MonthPicker from '../components/MonthPicker';
 import { useHousehold } from '../context/HouseholdContext';
@@ -22,13 +22,106 @@ export default function Dashboard() {
   const [exportEndMonth, setExportEndMonth] = useState(getMonthKey());
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
   const { bills, loading, error: billsError, refresh: refreshBills } = useBills();
-  const { payments, error: paymentsError, refresh: refreshPayments } = usePayments();
+  const { error: paymentsError, refresh: refreshPayments } = usePayments();
   const { settings } = useSettings();
+  const [expandedFamily, setExpandedFamily] = useState<FamilyName | null>(null);
 
   const monthBills = useMemo(() => bills.filter((b) => b.month === month), [bills, month]);
   const totalThisMonth = useMemo(() => monthBills.reduce((sum, b) => sum + b.totalAmount, 0), [monthBills]);
 
-  const balances = useMemo(() => calculateBalances(bills, payments), [bills, payments]);
+  // Per-household ledger of bill-derived events for the selected month and prior months.
+  // Each split produces a chronological set of "+amount" / "-amount" entries:
+  //  - Unpaid bill (no tapal): "Family -> UTILITY" +amount
+  //  - Paid bill (no tapal / self-funded in tapal flow / lender's own share): pair "+/- amount"
+  //  - Tapal borrower: "Family borrows X from Lender for UTILITY" +amount, optional "pays Lender X" -amount
+  const ledgerByFamily = useMemo(() => {
+    type LedgerEvent = {
+      id: string;
+      date: string;
+      text: string;
+      amount: number;
+      utility: UtilityType;
+      month: string;
+    };
+    const result: Record<FamilyName, LedgerEvent[]> = {
+      Bacarisas: [],
+      Ocanada: [],
+      Patino: [],
+    };
+    const relevantBills = bills
+      .filter((b) => b.month <= month)
+      .sort((a, b) => a.month.localeCompare(b.month) || a.createdAt.localeCompare(b.createdAt));
+
+    for (const family of FAMILY_NAMES) {
+      for (const bill of relevantBills) {
+        const split = bill.splits.find((s) => s.family === family);
+        if (!split) continue;
+        const isLender = bill.paidBy === family;
+        // Detect lender per split — preferred via split.paidTo (new per-split flow), fall back
+        // to bill.paidBy for the legacy tapal flow when this row is still unpaid.
+        let lender: FamilyName | undefined;
+        if (split.paidTo && split.paidTo !== family) {
+          lender = split.paidTo;
+        } else if (!split.isPaid && bill.paidBy && bill.paidBy !== family) {
+          lender = bill.paidBy;
+        }
+        const isBorrower = !!lender;
+
+        if (isBorrower && lender) {
+          result[family].push({
+            id: `${bill.id}-borrow`,
+            date: bill.createdAt,
+            text: `${family} borrows ${formatCurrency(split.amount)} from ${lender} for ${bill.utility}`,
+            amount: split.amount,
+            utility: bill.utility,
+            month: bill.month,
+          });
+          if (split.lenderReimbursed) {
+            result[family].push({
+              id: `${bill.id}-repay`,
+              date: split.paidDate ?? bill.createdAt,
+              text: `${family} pays ${lender} ${formatCurrency(split.amount)} for ${bill.utility}`,
+              amount: -split.amount,
+              utility: bill.utility,
+              month: bill.month,
+            });
+          }
+        } else {
+          result[family].push({
+            id: `${bill.id}-bill`,
+            date: bill.createdAt,
+            text: `${family} → ${bill.utility}`,
+            amount: split.amount,
+            utility: bill.utility,
+            month: bill.month,
+          });
+          // Lender of a tapal bill paid utility for everyone, so their own share is settled too.
+          if (split.isPaid || isLender) {
+            result[family].push({
+              id: `${bill.id}-paid`,
+              date: split.paidDate ?? bill.createdAt,
+              text: `${family} paid ${bill.utility}`,
+              amount: -split.amount,
+              utility: bill.utility,
+              month: bill.month,
+            });
+          }
+        }
+      }
+      result[family].sort((a, b) => a.date.localeCompare(b.date));
+    }
+    return result;
+  }, [bills, month]);
+
+  const totalsByFamily = useMemo(() => {
+    const totals: Record<FamilyName, number> = { Bacarisas: 0, Ocanada: 0, Patino: 0 };
+    for (const family of FAMILY_NAMES) {
+      totals[family] = Math.round(
+        ledgerByFamily[family].reduce((sum, e) => sum + e.amount, 0) * 100
+      ) / 100;
+    }
+    return totals;
+  }, [ledgerByFamily]);
 
   const alerts = useMemo(() => {
     const items: { type: 'overdue' | 'due-soon'; message: string }[] = [];
@@ -318,36 +411,99 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Who Owes Who */}
+      {/* Outstanding Balances */}
       <div className="glass-panel rounded-2xl p-4 hover-lift">
-        <h3 className="text-sm font-semibold text-slate-300 mb-3">
-          <TrendingUp className="w-4 h-4 inline mr-1" />
-          Outstanding Balances
-        </h3>
-        {balances.length === 0 ? (
-          <p className="text-slate-500 text-sm text-center py-4">All settled up!</p>
-        ) : (
-          <div className="space-y-2 stagger-list">
-            {balances.map((b, i) => (
-              <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-slate-900/45 border border-slate-700/50">
-                <div className="flex items-center gap-2 text-sm">
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold text-slate-300">
+            <TrendingUp className="w-4 h-4 inline mr-1" />
+            Outstanding Balances
+          </h3>
+          <p className="text-[11px] text-slate-500 mt-1">
+            Total each household still owes through {getMonthLabel(month)}. Tap a row to see the chronological breakdown.
+          </p>
+        </div>
+        <div className="space-y-2 stagger-list">
+          {FAMILY_NAMES.map((family) => {
+            const events = ledgerByFamily[family];
+            const total = totalsByFamily[family];
+            const expanded = expandedFamily === family;
+            const totalClass =
+              total > 0.01 ? 'text-danger-400' : total < -0.01 ? 'text-success-400' : 'text-slate-400';
+            return (
+              <div
+                key={family}
+                className="rounded-xl bg-slate-900/45 border border-slate-700/50 overflow-hidden"
+              >
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between py-2.5 px-3 hover:bg-slate-800/50 transition-colors interactive-press"
+                  aria-expanded={expanded}
+                  aria-controls={`ledger-${family}`}
+                  onClick={() => setExpandedFamily(expanded ? null : family)}
+                >
+                  <div className="flex items-center gap-2 text-sm">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: FAMILY_COLORS[family] }}
+                    />
+                    <span>{family}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-semibold ${totalClass}`}>
+                      {formatCurrency(total)}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                    />
+                  </div>
+                </button>
+                {expanded && (
                   <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: FAMILY_COLORS[b.from] }}
-                  />
-                  <span>{b.from}</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: FAMILY_COLORS[b.to] }}
-                  />
-                  <span>{b.to}</span>
-                </div>
-                <span className="text-sm font-semibold text-danger-400">{formatCurrency(b.amount)}</span>
+                    id={`ledger-${family}`}
+                    className="border-t border-slate-700/50 px-3 py-2 space-y-1.5 bg-slate-950/30"
+                  >
+                    {events.length === 0 ? (
+                      <p className="text-xs text-slate-500 py-1">No bill activity in this period.</p>
+                    ) : (
+                      <>
+                        {events.map((event) => {
+                          const isAdd = event.amount > 0;
+                          return (
+                            <div
+                              key={event.id}
+                              className="flex items-center justify-between gap-2 text-xs py-1"
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-[10px] text-slate-500 shrink-0">
+                                  {getMonthLabel(event.month)}
+                                </span>
+                                <span className="text-slate-300 truncate">{event.text}</span>
+                              </div>
+                              <span
+                                className={`font-semibold shrink-0 ${
+                                  isAdd ? 'text-danger-300' : 'text-success-300'
+                                }`}
+                              >
+                                {isAdd ? '+' : '−'}
+                                {formatCurrency(Math.abs(event.amount))}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        <div className="flex items-center justify-between text-xs pt-2 mt-1 border-t border-slate-700/50">
+                          <span className="text-slate-400 font-semibold">Total still owed</span>
+                          <span className={`font-semibold ${totalClass}`}>
+                            {formatCurrency(total)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
 
       {/* Export */}

@@ -31,6 +31,7 @@ function parseSplit(value: unknown): BillSplit | null {
     isPaid: value.isPaid,
     paidDate: typeof value.paidDate === 'string' ? value.paidDate : undefined,
     paidTo: parseFamilyName(value.paidTo) ?? undefined,
+    lenderReimbursed: typeof value.lenderReimbursed === 'boolean' ? value.lenderReimbursed : undefined,
   };
 }
 

@@ -162,26 +162,61 @@ export default function Bills() {
     [customSplits, formAmount, formImage, formUtility, month, household, refresh, clearImage, settings?.utilityDueDays]
   );
 
-  const handleTogglePaid = useCallback(
+  const handleMarkPaid = useCallback(
+    async (billId: string, family: FamilyName, paidTo?: FamilyName) => {
+      const bill = bills.find((b) => b.id === billId);
+      if (!bill) return;
+
+      const newSplits: BillSplit[] = bill.splits.map((s) => {
+        if (s.family !== family) return s;
+        const next: BillSplit = {
+          ...s,
+          isPaid: true,
+          paidDate: new Date().toISOString(),
+        };
+        if (paidTo && paidTo !== family) {
+          next.paidTo = paidTo;
+        } else {
+          delete next.paidTo;
+        }
+        // Reset reimbursement flag when re-marking the row
+        delete next.lenderReimbursed;
+        return next;
+      });
+
+      try {
+        await updateBill(billId, { splits: newSplits });
+        toast.success(
+          paidTo && paidTo !== family
+            ? `${family} borrowed ${bill.utility} share from ${paidTo}`
+            : `${family}'s ${bill.utility} share marked paid`
+        );
+        await refresh();
+      } catch (err) {
+        console.error('Failed to update payment:', err);
+        toast.error('Failed to update payment');
+      }
+    },
+    [bills, refresh]
+  );
+
+  const handleMarkUnpaid = useCallback(
     async (billId: string, family: FamilyName) => {
       const bill = bills.find((b) => b.id === billId);
       if (!bill) return;
 
       const newSplits: BillSplit[] = bill.splits.map((s) => {
         if (s.family !== family) return s;
-        const next: BillSplit = { ...s, isPaid: !s.isPaid };
-        if (!s.isPaid) {
-          next.paidDate = new Date().toISOString();
-        } else {
-          delete next.paidDate;
-          delete next.paidTo;
-        }
+        const next: BillSplit = { ...s, isPaid: false };
+        delete next.paidDate;
+        delete next.paidTo;
+        delete next.lenderReimbursed;
         return next;
       });
 
       try {
         await updateBill(billId, { splits: newSplits });
-        toast.success(`${family}'s payment ${newSplits.find((s) => s.family === family)?.isPaid ? 'confirmed' : 'unmarked'}`);
+        toast.success(`${family}'s payment unmarked`);
         await refresh();
       } catch (err) {
         console.error('Failed to update payment:', err);
@@ -365,6 +400,26 @@ export default function Bills() {
     [refresh]
   );
 
+  const handleSettleTapal = useCallback(
+    async (billId: string, family: FamilyName) => {
+      const bill = bills.find((item) => item.id === billId);
+      if (!bill) return;
+      const nextSplits: BillSplit[] = bill.splits.map((split) => {
+        if (split.family !== family) return split;
+        return { ...split, lenderReimbursed: true };
+      });
+
+      try {
+        await updateBill(billId, { splits: nextSplits });
+        toast.success(`${family}'s tapal debt marked as settled`);
+        await refresh();
+      } catch {
+        toast.error('Failed to settle tapal debt');
+      }
+    },
+    [bills, refresh]
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -541,10 +596,12 @@ export default function Bills() {
             <BillCard
               key={bill.id}
               bill={bill}
-              onTogglePaid={handleTogglePaid}
+              onMarkPaid={handleMarkPaid}
+              onMarkUnpaid={handleMarkUnpaid}
               onDelete={queueDelete}
               onTogglePaidToProvider={handleTogglePaidToProvider}
               onEdit={openEditBill}
+              onSettleTapal={handleSettleTapal}
             />
           ))}
         </div>

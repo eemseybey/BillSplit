@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Zap, Wifi, Droplets, Check, Trash2, ImageIcon, X, Pencil } from 'lucide-react';
-import type { Bill, FamilyName } from '../types';
+import type { Bill, BillSplit, FamilyName } from '../types';
 import { formatCurrency } from '../lib/billCalculator';
-import { FAMILY_COLORS } from '../lib/constants';
+import { FAMILY_COLORS, FAMILY_NAMES } from '../lib/constants';
 import StatusBadge from './StatusBadge';
+import MarkPaidDialog from './MarkPaidDialog';
 
 const utilityIcons = {
   VECO: Zap,
@@ -19,16 +20,35 @@ const utilityColors = {
 
 interface BillCardProps {
   bill: Bill;
-  onTogglePaid: (billId: string, family: FamilyName) => void;
+  onMarkPaid: (billId: string, family: FamilyName, paidTo?: FamilyName) => void;
+  onMarkUnpaid: (billId: string, family: FamilyName) => void;
   onDelete: (billId: string) => void;
   onTogglePaidToProvider: (billId: string) => void;
   onEdit: (bill: Bill) => void;
+  onSettleTapal: (billId: string, family: FamilyName) => void;
 }
 
-export default function BillCard({ bill, onTogglePaid, onDelete, onTogglePaidToProvider, onEdit }: BillCardProps) {
+export default function BillCard({
+  bill,
+  onMarkPaid,
+  onMarkUnpaid,
+  onDelete,
+  onTogglePaidToProvider,
+  onEdit,
+  onSettleTapal,
+}: BillCardProps) {
   const Icon = utilityIcons[bill.utility];
   const allSplitsPaid = bill.splits.every((s) => s.isPaid);
   const [showImage, setShowImage] = useState(false);
+  const [pendingPaid, setPendingPaid] = useState<BillSplit | null>(null);
+
+  const handleCheckClick = (split: BillSplit) => {
+    if (split.isPaid) {
+      onMarkUnpaid(bill.id, split.family);
+      return;
+    }
+    setPendingPaid(split);
+  };
 
   return (
     <>
@@ -101,10 +121,42 @@ export default function BillCard({ bill, onTogglePaid, onDelete, onTogglePaidToP
               <span className="text-sm">{split.family}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{formatCurrency(split.amount)}</span>
+              <div className="text-right">
+                <p className="text-sm font-medium">{formatCurrency(split.amount)}</p>
+                {(() => {
+                  const tapalBy =
+                    split.paidTo && split.paidTo !== split.family
+                      ? split.paidTo
+                      : bill.paidBy && bill.paidBy !== split.family
+                        ? bill.paidBy
+                        : undefined;
+                  if (!tapalBy) return null;
+                  if (split.lenderReimbursed === true) return null;
+                  const canReimburseLender =
+                    bill.isPaidToProvider && split.isPaid && split.family !== tapalBy;
+                  return (
+                    <div className="flex items-center justify-end gap-1.5 mt-0.5 flex-wrap">
+                      <p className="text-[11px] text-primary-300">Tapal by {tapalBy}</p>
+                      {canReimburseLender && (
+                        <button
+                          type="button"
+                          onClick={() => onSettleTapal(bill.id, split.family)}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-success-500/20 text-success-300 hover:bg-success-500/30 transition-colors interactive-press"
+                        >
+                          Settle
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
               <button
-                onClick={() => onTogglePaid(bill.id, split.family)}
-                aria-label={`Toggle paid for ${split.family}`}
+                onClick={() => handleCheckClick(split)}
+                aria-label={
+                  split.isPaid
+                    ? `Unmark paid for ${split.family}`
+                    : `Mark paid for ${split.family}`
+                }
                 className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                   split.isPaid
                     ? 'bg-success-500 text-white shadow-[0_0_14px_rgba(34,197,94,0.35)]'
@@ -128,12 +180,24 @@ export default function BillCard({ bill, onTogglePaid, onDelete, onTogglePaidToP
         </button>
       )}
 
-      {bill.paidBy && (
-        <div className="mt-3 px-3 py-2 bg-primary-500/10 rounded-lg text-xs text-primary-300">
-          Tapal by <span className="font-semibold">{bill.paidBy}</span>
-        </div>
-      )}
     </div>
+
+      <MarkPaidDialog
+        open={pendingPaid !== null}
+        family={pendingPaid?.family ?? 'Bacarisas'}
+        utility={bill.utility}
+        amount={pendingPaid?.amount ?? 0}
+        otherFamilies={
+          pendingPaid ? FAMILY_NAMES.filter((f) => f !== pendingPaid.family) : []
+        }
+        onSelect={(paidTo) => {
+          if (pendingPaid) {
+            onMarkPaid(bill.id, pendingPaid.family, paidTo);
+          }
+          setPendingPaid(null);
+        }}
+        onCancel={() => setPendingPaid(null)}
+      />
 
       {/* Full-screen image overlay */}
       {showImage && bill.imageUrl && (

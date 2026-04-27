@@ -68,12 +68,20 @@ export function calculateTapalOwed(
   paidBy: FamilyName
 ): { family: FamilyName; amount: number }[] {
   return splits
-    .filter((s) => s.family !== paidBy && !s.isPaid)
+    .filter(
+      (s) =>
+        s.family !== paidBy &&
+        s.lenderReimbursed !== true &&
+        (!s.isPaid || s.paidTo === paidBy)
+    )
     .map((s) => ({ family: s.family, amount: s.amount }));
 }
 
 export function formatCurrency(amount: number): string {
-  return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Coerce -0 and tiny floating-point negatives that round to zero (e.g. -1e-12) to +0
+  // so we never display "-₱0.00" anywhere.
+  const safe = !Number.isFinite(amount) || Math.abs(amount) < 0.005 ? 0 : amount;
+  return `₱${safe.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function getMonthKey(date: Date = new Date()): string {

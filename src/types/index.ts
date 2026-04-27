@@ -30,6 +30,8 @@ export interface BillSplit {
   isPaid: boolean;
   paidDate?: string;
   paidTo?: FamilyName; // Who they paid (for tapal tracking)
+  /** True when this split's share was covered by the tapal payer and the borrower has reimbursed that person (cash/transfer) */
+  lenderReimbursed?: boolean;
 }
 
 export interface Payment {

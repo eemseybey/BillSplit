@@ -155,7 +155,26 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
 
 // --- Balance Calculations ---
 
-export function calculateBalances(bills: Bill[], payments: Payment[]) {
+export type CalculateBalancesOptions = { onlyMonth?: string };
+
+/**
+ * Interpersonal balances from tapal (who still owes the person who fronted) plus settlement payments.
+ * Tapal only counts a split when that person is actually covered by the tapal payer: either they still
+ * haven’t “paid” their share in the split (!isPaid) or paidTo points at the front person. Splits that
+ * are isPaid with no paidTo were self-funded in the tapal flow and do not add debt.
+ *
+ * @param onlyMonth - If set (e.g. "2026-04"), only bills and payments in that month are included. Use
+ *   on the Dashboard so totals match the month being viewed; omit for an all-time net (Analytics, Tapal).
+ */
+export function calculateBalances(
+  bills: Bill[],
+  payments: Payment[],
+  options?: CalculateBalancesOptions
+) {
+  const { onlyMonth } = options ?? {};
+  const billRows = onlyMonth ? bills.filter((b) => b.month === onlyMonth) : bills;
+  const paymentRows = onlyMonth ? payments.filter((p) => p.month === onlyMonth) : payments;
+
   const balances: Record<string, number> = {};
   const families: FamilyName[] = ['Bacarisas', 'Ocanada', 'Patino'];
 
@@ -168,19 +187,24 @@ export function calculateBalances(bills: Bill[], payments: Payment[]) {
     }
   }
 
-  // Process bills with tapal
-  for (const bill of bills) {
-    if (bill.paidBy) {
-      for (const split of bill.splits) {
-        if (split.family !== bill.paidBy && !split.isPaid) {
-          balances[`${split.family}->${bill.paidBy}`] += split.amount;
-        }
+  // Tapal — supports both the per-split borrow flow (split.paidTo) and the legacy whole-bill flow
+  // (bill.paidBy with the borrower's split still unpaid). Skips rows already reimbursed.
+  for (const bill of billRows) {
+    for (const split of bill.splits) {
+      if (split.lenderReimbursed === true) continue;
+      let lender: FamilyName | undefined;
+      if (split.paidTo && split.paidTo !== split.family) {
+        lender = split.paidTo;
+      } else if (!split.isPaid && bill.paidBy && bill.paidBy !== split.family) {
+        lender = bill.paidBy;
       }
+      if (!lender) continue;
+      balances[`${split.family}->${lender}`] += split.amount;
     }
   }
 
   // Subtract payments
-  for (const payment of payments) {
+  for (const payment of paymentRows) {
     balances[`${payment.from}->${payment.to}`] -= payment.amount;
   }
 
