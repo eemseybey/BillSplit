@@ -8,6 +8,7 @@ import type { FamilyName, UtilityType } from '../types';
 import { FAMILY_COLORS, FAMILY_NAMES } from '../lib/constants';
 import MonthPicker from '../components/MonthPicker';
 import { useHousehold } from '../context/HouseholdContext';
+import { useMonth } from '../context/MonthContext';
 import { useSettings } from '../hooks/useFirestore';
 import ErrorPanel from '../components/ErrorPanel';
 
@@ -17,7 +18,7 @@ type ExportFormat = 'csv' | 'html' | 'pdf' | 'xlsx';
 
 export default function Dashboard() {
   const { household } = useHousehold();
-  const [month, setMonth] = useState(getMonthKey());
+  const { month, setMonth } = useMonth();
   const [exportStartMonth, setExportStartMonth] = useState(getMonthKey());
   const [exportEndMonth, setExportEndMonth] = useState(getMonthKey());
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
@@ -356,11 +357,13 @@ export default function Dashboard() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3">
         <div className="glass-panel gradient-outline rounded-2xl p-4 hover-lift">
-          <p className="text-xs text-slate-400 mb-1">Total Bills</p>
+          <p className="text-xs text-slate-400">Total Bills</p>
+          <p className="text-[10px] text-slate-500 mb-1">{getMonthLabel(month)}</p>
           <p className="text-xl font-bold text-white tracking-tight">{formatCurrency(totalThisMonth)}</p>
         </div>
         <div className="glass-panel gradient-outline rounded-2xl p-4 hover-lift">
-          <p className="text-xs text-slate-400 mb-1">My Share</p>
+          <p className="text-xs text-slate-400">My Share · {household}</p>
+          <p className="text-[10px] text-slate-500 mb-1">{getMonthLabel(month)}</p>
           <p className="text-xl font-bold text-primary-400">{formatCurrency(myShare)}</p>
         </div>
       </div>
@@ -417,9 +420,10 @@ export default function Dashboard() {
           <h3 className="text-sm font-semibold text-slate-300">
             <TrendingUp className="w-4 h-4 inline mr-1" />
             Outstanding Balances
+            <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">All-time</span>
           </h3>
           <p className="text-[11px] text-slate-500 mt-1">
-            Total each household still owes through {getMonthLabel(month)}. Tap a row to see the chronological breakdown.
+            Cumulative — total each household still owes through {getMonthLabel(month)}, not just this month. Tap a row to see the chronological breakdown.
           </p>
         </div>
         <div className="space-y-2 stagger-list">

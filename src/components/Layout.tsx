@@ -1,7 +1,7 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Receipt, HandCoins, BarChart3, Settings, Bell, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { isBillOverdue, isBillDueSoon, getMonthKey } from '../lib/billCalculator';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Receipt, HandCoins, BarChart3, Settings, Bell, AlertTriangle, Clock, ArrowRight } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { isBillOverdue, isBillDueSoon, getMonthKey, formatCurrency } from '../lib/billCalculator';
 import { useBills, useSettings } from '../hooks/useFirestore';
 import { useHousehold } from '../context/HouseholdContext';
 import { FAMILY_COLORS } from '../lib/constants';
@@ -16,18 +16,55 @@ const navItems = [
 ];
 
 export default function Layout() {
-  const { household, clearHousehold } = useHousehold();
+  const { household } = useHousehold();
   const { bills, error: billsError, refresh } = useBills();
   const { settings } = useSettings();
-  const [alertCount, setAlertCount] = useState(0);
+  const navigate = useNavigate();
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const alertsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // Current-month bills that aren't yet paid to the provider, flagged overdue / due-soon.
+  const alerts = useMemo(() => {
     const currentMonth = getMonthKey();
-    const currentBills = bills.filter((b) => b.month === currentMonth);
-    const overdueCount = currentBills.filter((b) => isBillOverdue(b, settings?.utilityDueDays) && !b.isPaidToProvider).length;
-    const dueSoonCount = currentBills.filter((b) => isBillDueSoon(b, settings?.utilityDueDays) && !b.isPaidToProvider).length;
-    setAlertCount(overdueCount + dueSoonCount);
+    return bills
+      .filter((b) => b.month === currentMonth && !b.isPaidToProvider)
+      .map((b) => {
+        if (isBillOverdue(b, settings?.utilityDueDays)) {
+          return { id: b.id, utility: b.utility, amount: b.totalAmount, type: 'overdue' as const };
+        }
+        if (isBillDueSoon(b, settings?.utilityDueDays)) {
+          return { id: b.id, utility: b.utility, amount: b.totalAmount, type: 'due-soon' as const };
+        }
+        return null;
+      })
+      .filter((a): a is NonNullable<typeof a> => a !== null);
   }, [bills, settings?.utilityDueDays]);
+
+  const alertCount = alerts.length;
+
+  // Close the alerts dropdown on outside-click or Escape.
+  useEffect(() => {
+    if (!alertsOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (alertsRef.current && !alertsRef.current.contains(e.target as Node)) {
+        setAlertsOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAlertsOpen(false);
+    };
+    window.addEventListener('mousedown', onClick);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onClick);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [alertsOpen]);
+
+  const goToBills = () => {
+    setAlertsOpen(false);
+    navigate('/bills');
+  };
 
   return (
     <div className="min-h-screen aurora-shell flex flex-col">
@@ -44,29 +81,77 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="relative glass-panel rounded-full p-1.5" aria-label={`Bill alerts: ${alertCount}`}>
-              <Bell className="w-5 h-5 text-slate-400" />
-              {alertCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-danger-500 rounded-full text-[10px] flex items-center justify-center font-bold">
-                  {alertCount}
-                </span>
+            {/* Alerts bell + dropdown */}
+            <div className="relative" ref={alertsRef}>
+              <button
+                onClick={() => setAlertsOpen((o) => !o)}
+                className="relative glass-panel rounded-full p-1.5 text-slate-400 hover:text-slate-200 interactive-press"
+                aria-label={`Bill alerts: ${alertCount}`}
+                aria-expanded={alertsOpen}
+                aria-haspopup="true"
+              >
+                <Bell className="w-5 h-5" />
+                {alertCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-danger-500 rounded-full text-[10px] flex items-center justify-center font-bold">
+                    {alertCount}
+                  </span>
+                )}
+              </button>
+              {alertsOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Bill alerts"
+                  className="absolute right-0 mt-2 w-72 glass-heavy rounded-2xl border border-slate-600/70 shadow-xl z-[120] overflow-hidden fade-slide-in"
+                >
+                  <div className="px-4 py-2.5 border-b border-slate-700/60">
+                    <p className="text-sm font-semibold text-white">Alerts ({alertCount})</p>
+                  </div>
+                  {alertCount === 0 ? (
+                    <p className="px-4 py-4 text-xs text-slate-400 text-center">
+                      No overdue or upcoming bills this month.
+                    </p>
+                  ) : (
+                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-700/50">
+                      {alerts.map((a) => (
+                        <button
+                          key={a.id}
+                          onClick={goToBills}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-800/60 transition-colors"
+                        >
+                          {a.type === 'overdue' ? (
+                            <AlertTriangle className="w-4 h-4 text-danger-400 shrink-0" />
+                          ) : (
+                            <Clock className="w-4 h-4 text-warning-400 shrink-0" />
+                          )}
+                          <span className="text-sm text-slate-200 flex-1">{a.utility}</span>
+                          <span className="text-xs text-slate-400">{formatCurrency(a.amount)}</span>
+                          <span
+                            className={`text-[10px] font-semibold uppercase ${
+                              a.type === 'overdue' ? 'text-danger-400' : 'text-warning-400'
+                            }`}
+                          >
+                            {a.type === 'overdue' ? 'Overdue' : 'Due soon'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={goToBills}
+                    className="w-full flex items-center justify-center gap-1 px-4 py-2.5 text-xs font-medium text-primary-300 hover:bg-slate-800/60 border-t border-slate-700/60 transition-colors"
+                  >
+                    View all bills <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
             </div>
             <div className="flex items-center gap-2 glass-panel rounded-full px-2.5 py-1.5">
               <div
                 className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: household ? FAMILY_COLORS[household] : undefined }}
+                style={{ backgroundColor: FAMILY_COLORS[household] }}
               />
               <span className="text-xs text-slate-400">{household}</span>
             </div>
-            <button
-              onClick={clearHousehold}
-              className="glass-panel rounded-full p-2 text-slate-400 hover:text-slate-200 interactive-press"
-              title="Switch household"
-              aria-label="Switch household"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </header>

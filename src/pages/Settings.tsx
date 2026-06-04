@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Send, Phone, Key, Bell, Users, LogOut } from 'lucide-react';
+import { Save, Send, Phone, Key, Bell, Users, Home } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSettings } from '../hooks/useFirestore';
 import { sendSMS } from '../lib/sms';
@@ -10,7 +10,7 @@ import type { AppSettings, Family, FamilyName, SplitRules, UtilityType } from '.
 import ErrorPanel from '../components/ErrorPanel';
 
 export default function Settings() {
-  const { household, clearHousehold } = useHousehold();
+  const { household, selectHousehold } = useHousehold();
   const { settings, save, loading, error, refresh } = useSettings();
   const [apiKey, setApiKey] = useState('');
   const [smsEnabled, setSmsEnabled] = useState(false);
@@ -87,6 +87,34 @@ export default function Settings() {
     <div className="space-y-4 fade-slide-in">
       <h2 className="text-lg font-bold">Settings</h2>
       {error && <ErrorPanel message={error} onRetry={refresh} />}
+
+      {/* My Household identity */}
+      <div className="glass-panel rounded-2xl p-4 hover-lift">
+        <div className="flex items-center gap-2 mb-3">
+          <Home className="w-5 h-5 text-primary-400" />
+          <h3 className="font-semibold">My Household</h3>
+        </div>
+        <label className="block text-xs text-slate-400 mb-1">
+          Used for the “My Share” figure on the dashboard.
+        </label>
+        <div className="flex items-center gap-2">
+          <span
+            className="w-3 h-3 rounded-full shrink-0"
+            style={{ backgroundColor: FAMILY_COLORS[household] }}
+          />
+          <select
+            value={household}
+            onChange={(e) => selectHousehold(e.target.value as FamilyName)}
+            className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-primary-500"
+          >
+            {FAMILY_NAMES.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {/* Family Phone Numbers */}
       <div className="glass-panel rounded-2xl p-4 hover-lift">
@@ -385,14 +413,6 @@ export default function Settings() {
         {saving ? 'Saving...' : 'Save Settings'}
       </button>
 
-      {/* Switch Household */}
-      <button
-        onClick={clearHousehold}
-        className="w-full py-3 glass-panel rounded-2xl font-medium flex items-center justify-center gap-2 transition-colors text-slate-300 hover:border-primary-500 interactive-press"
-      >
-        <LogOut className="w-5 h-5" />
-        Switch Household (current: {household})
-      </button>
     </div>
   );
 }

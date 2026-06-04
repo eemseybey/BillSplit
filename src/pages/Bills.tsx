@@ -3,12 +3,13 @@ import { Plus, X, Camera, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { toPng } from 'html-to-image';
 import { useBills, useSettings } from '../hooks/useFirestore';
-import { calculateSplits, getMonthKey, formatCurrency } from '../lib/billCalculator';
+import { calculateSplits, formatCurrency } from '../lib/billCalculator';
 import { addBill, updateBill, deleteBill } from '../lib/firestore';
 import { deleteBillImage, uploadBillImage } from '../lib/storage';
 import { DEFAULT_UTILITY_DUE_DAYS, FAMILY_NAMES, UTILITIES } from '../lib/constants';
 import type { Bill, BillSplit, FamilyName, UtilityType } from '../types';
 import { useHousehold } from '../context/HouseholdContext';
+import { useMonth } from '../context/MonthContext';
 import BillCard from '../components/BillCard';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ErrorPanel from '../components/ErrorPanel';
@@ -16,7 +17,7 @@ import MonthPicker from '../components/MonthPicker';
 
 export default function Bills() {
   const { household } = useHousehold();
-  const [month, setMonth] = useState(getMonthKey());
+  const { month, setMonth } = useMonth();
   const { bills, refresh, loading, error } = useBills();
   const { settings } = useSettings();
   const [showForm, setShowForm] = useState(false);

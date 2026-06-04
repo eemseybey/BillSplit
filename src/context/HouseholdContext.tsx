@@ -1,39 +1,35 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { FamilyName } from '../types';
+import { FAMILY_NAMES } from '../lib/constants';
 
 interface HouseholdContextType {
-  household: FamilyName | null;
+  household: FamilyName;
   selectHousehold: (family: FamilyName) => void;
-  clearHousehold: () => void;
 }
 
 const HouseholdContext = createContext<HouseholdContextType | null>(null);
 
 const STORAGE_KEY = 'billsplit-household';
+const DEFAULT_HOUSEHOLD: FamilyName = FAMILY_NAMES[0];
 
-function getStoredHousehold(): FamilyName | null {
+function getStoredHousehold(): FamilyName {
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === 'Bacarisas' || stored === 'Ocanada' || stored === 'Patino') {
-    return stored;
+  if (FAMILY_NAMES.includes(stored as FamilyName)) {
+    return stored as FamilyName;
   }
-  return null;
+  return DEFAULT_HOUSEHOLD;
 }
 
 export function HouseholdProvider({ children }: { children: ReactNode }) {
-  const [household, setHousehold] = useState<FamilyName | null>(getStoredHousehold);
+  const [household, setHousehold] = useState<FamilyName>(getStoredHousehold);
 
   const selectHousehold = useCallback((family: FamilyName) => {
     localStorage.setItem(STORAGE_KEY, family);
     setHousehold(family);
   }, []);
 
-  const clearHousehold = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setHousehold(null);
-  }, []);
-
   return (
-    <HouseholdContext.Provider value={{ household, selectHousehold, clearHousehold }}>
+    <HouseholdContext.Provider value={{ household, selectHousehold }}>
       {children}
     </HouseholdContext.Provider>
   );

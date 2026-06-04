@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { HouseholdProvider, useHousehold } from './context/HouseholdContext';
+import { HouseholdProvider } from './context/HouseholdContext';
+import { MonthProvider } from './context/MonthContext';
 import { AppDataProvider } from './context/AppDataContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
@@ -9,15 +10,8 @@ import Bills from './pages/Bills';
 import Tapal from './pages/Tapal';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
-import HouseholdSelect from './pages/HouseholdSelect';
 
 function AppRoutes() {
-  const { household } = useHousehold();
-
-  if (!household) {
-    return <HouseholdSelect />;
-  }
-
   return (
     <Routes>
       <Route element={<Layout />}>
@@ -27,6 +21,7 @@ function AppRoutes() {
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
@@ -34,6 +29,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <HouseholdProvider>
+      <MonthProvider>
       <AppDataProvider>
         <BrowserRouter>
           <ErrorBoundary>
@@ -53,6 +49,7 @@ export default function App() {
           </ErrorBoundary>
         </BrowserRouter>
       </AppDataProvider>
+      </MonthProvider>
     </HouseholdProvider>
   );
 }

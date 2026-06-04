@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { HandCoins, ArrowRight, Check, Send, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useBills, usePayments, useSettings } from '../hooks/useFirestore';
-import { formatCurrency, getMonthKey, getMonthLabel, calculateTapalOwed } from '../lib/billCalculator';
+import { formatCurrency, getMonthLabel, calculateTapalOwed } from '../lib/billCalculator';
 import { updateBill, addPayment, calculateBalances } from '../lib/firestore';
 import { sendSMS, buildTapalMessage } from '../lib/sms';
 import { FAMILY_COLORS, FAMILIES, FAMILY_NAMES } from '../lib/constants';
@@ -10,11 +10,12 @@ import { SMS_ENABLED } from '../lib/features';
 import type { Bill, FamilyName } from '../types';
 import MonthPicker from '../components/MonthPicker';
 import { useHousehold } from '../context/HouseholdContext';
+import { useMonth } from '../context/MonthContext';
 import ErrorPanel from '../components/ErrorPanel';
 
 export default function Tapal() {
   const { household } = useHousehold();
-  const [month, setMonth] = useState(getMonthKey());
+  const { month, setMonth } = useMonth();
   const { bills, refresh: refreshBills, error: billsError } = useBills();
   const { payments, refresh: refreshPayments, error: paymentsError } = usePayments();
   const { settings, error: settingsError, refresh: refreshSettings } = useSettings();
