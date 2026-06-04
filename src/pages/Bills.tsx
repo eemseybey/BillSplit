@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Plus, X, Camera } from 'lucide-react';
+import { Plus, X, Camera, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { toPng } from 'html-to-image';
 import { useBills, useSettings } from '../hooks/useFirestore';
 import { calculateSplits, getMonthKey, formatCurrency } from '../lib/billCalculator';
 import { addBill, updateBill, deleteBill } from '../lib/firestore';
@@ -38,6 +39,8 @@ export default function Bills() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const captureRef = useRef<HTMLDivElement>(null);
+  const [savingImage, setSavingImage] = useState(false);
   const [customSplits, setCustomSplits] = useState<Record<FamilyName, string>>({
     Bacarisas: '', Ocanada: '', Patino: '',
   });
@@ -420,6 +423,31 @@ export default function Bills() {
     [bills, refresh]
   );
 
+  const handleSaveImage = useCallback(async () => {
+    const node = captureRef.current;
+    if (!node) return;
+    setSavingImage(true);
+    try {
+      const dataUrl = await toPng(node, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#0f172a',
+        filter: (el) =>
+          !(el instanceof HTMLElement && el.dataset.noCapture !== undefined),
+      });
+      const link = document.createElement('a');
+      link.download = `bills-${month}.png`;
+      link.href = dataUrl;
+      link.click();
+      toast.success('Saved page as image');
+    } catch (err) {
+      console.error('Failed to save image:', err);
+      toast.error(`Failed to save image: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSavingImage(false);
+    }
+  }, [month]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -429,8 +457,17 @@ export default function Bills() {
   }
 
   return (
-    <div className="space-y-4 fade-slide-in">
+    <div ref={captureRef} className="space-y-4 fade-slide-in">
       <MonthPicker value={month} onChange={setMonth} />
+      <button
+        onClick={handleSaveImage}
+        disabled={savingImage}
+        data-no-capture
+        className="w-full py-2.5 rounded-2xl glass-panel text-sm text-slate-300 hover:border-primary-500 hover:text-primary-300 transition-colors hover-lift interactive-press flex items-center justify-center gap-2 disabled:opacity-50"
+      >
+        <ImageIcon className="w-4 h-4" />
+        {savingImage ? 'Saving…' : 'Save page as image'}
+      </button>
       {error && <ErrorPanel message={error} onRetry={() => void refresh()} />}
 
       {previousMonthBills.length > 0 && (
