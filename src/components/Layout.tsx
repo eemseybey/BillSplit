@@ -76,8 +76,8 @@ export default function Layout() {
               ₱
             </div>
             <div>
-              <h1 className="text-lg font-extrabold tracking-tight text-white">BillSplit</h1>
-              <p className="text-[10px] text-slate-400 -mt-0.5">Household Control Deck</p>
+              <h1 className="text-lg font-bold tracking-tight text-white">BillSplit</h1>
+              <p className="text-[11px] text-slate-500 -mt-0.5">Shared household bills</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -172,8 +172,8 @@ export default function Layout() {
               className={({ isActive }) =>
                 `flex flex-col items-center py-2 px-3 text-xs rounded-xl transition-all interactive-press ${
                   isActive
-                    ? 'text-cyan-300 bg-cyan-400/10 shadow-[0_0_18px_rgba(34,211,238,0.25)]'
-                    : 'text-slate-400 hover:text-slate-300 hover:bg-slate-700/40'
+                    ? 'text-primary-300 bg-primary-500/12'
+                    : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/60'
                 }`
               }
             >

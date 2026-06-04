@@ -515,8 +515,8 @@ export default function Bills() {
                   onClick={() => setFormUtility(u.type)}
                   className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                     formUtility === u.type
-                      ? 'animated-gradient-btn text-white shadow-[0_0_22px_rgba(59,130,246,0.35)]'
-                      : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
+                      ? 'animated-gradient-btn text-white'
+                      : 'bg-slate-800/70 text-slate-300 hover:bg-slate-700'
                   }`}
                 >
                   {u.type}

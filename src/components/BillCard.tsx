@@ -75,7 +75,7 @@ export default function BillCard({
             )}
             <button
               onClick={() => onEdit(bill)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-slate-800/70 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-primary-300 hover:bg-slate-800/70 transition-colors"
               aria-label={`Edit ${bill.utility} bill`}
             >
               <Pencil className="w-4 h-4" />
@@ -159,7 +159,7 @@ export default function BillCard({
                 }
                 className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                   split.isPaid
-                    ? 'bg-success-500 text-white shadow-[0_0_14px_rgba(34,197,94,0.35)]'
+                    ? 'bg-success-500 text-white'
                     : 'border border-slate-600 hover:border-success-400 hover:bg-success-500/10'
                 }`}
               >
