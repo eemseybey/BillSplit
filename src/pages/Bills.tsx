@@ -194,7 +194,7 @@ export default function Bills() {
         await refresh();
       } catch (err) {
         console.error('Failed to update payment:', err);
-        toast.error('Failed to update payment');
+        toast.error(`Failed to update payment: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
     [bills, refresh]
@@ -220,7 +220,7 @@ export default function Bills() {
         await refresh();
       } catch (err) {
         console.error('Failed to update payment:', err);
-        toast.error('Failed to update payment');
+        toast.error(`Failed to update payment: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
     [bills, refresh]
